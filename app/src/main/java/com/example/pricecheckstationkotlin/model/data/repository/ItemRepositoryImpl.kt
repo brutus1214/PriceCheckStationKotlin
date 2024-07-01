@@ -11,6 +11,7 @@ import com.example.pricecheckstationkotlin.model.data.DepartmentList
 import com.example.pricecheckstationkotlin.model.data.Item
 import com.example.pricecheckstationkotlin.model.data.ItemVendor
 import com.example.pricecheckstationkotlin.model.data.VendorList
+import com.example.pricecheckstationkotlin.util.IsItemOnSale
 import com.example.pricecheckstationkotlin.util.ean13
 import com.example.pricecheckstationkotlin.util.getCurrentDate
 import com.example.pricecheckstationkotlin.util.nobarcode
@@ -38,17 +39,10 @@ class ItemRepositoryImpl: ItemRepository {
                         "SubDescription1, " +
                         "SubDescription2, " +
                         "SubDescription3, " +
-                        "Quantity, " +
-                        "ReorderPoint, " +
-                        "LastSold, " +
                         "Price, " +
                         "SalePrice, " +
-                        "Cost, " +
-                        "DepartmentID, " +
-                        "SupplierID, " +
                         "SaleStartDate, " +
                         "SaleEndDate, " +
-                        "Notes, " +
                         "id " +
                         "FROM item " +
                         "WHERE itemlookupcode = '" + item.upc + "'"
@@ -61,133 +55,18 @@ class ItemRepositoryImpl: ItemRepository {
                     item.desc1 = set.getString(2)
                     item.desc2 = set.getString(3)
                     item.desc3 = set.getString(4)
-                    item.inventory = String.format("%1\$.2f", set.getString(5).toDouble())
-                    item.reorder = set.getString(6)
-
+                    item.retailPrice = String.format("%.2f", set.getString(5).toDouble())
+                    item.salePrice = String.format("%.2f", set.getString(6).toDouble())
                     if (set.getString(7) != null)
-                        item.lastSold = set.getString(7).substring(0, 10)
+                        item.saleStart = set.getString(7).substring(0, 10)
+                    if (set.getString(8) != null)
+                        item.saleEnd = set.getString(8).substring(0, 10)
+                    Log.i("PCSK: ItemS ---> ", item.saleStart)
+                    Log.i("PCSK: ItemE---> ", item.saleEnd)
 
-                    item.retailPrice = String.format("%.2f", set.getString(8).toDouble())
-                    item.salePrice = String.format("%.2f", set.getString(9).toDouble())
-                    item.cost = String.format("%.2f", set.getString(10).toDouble())
-                    item.dept = deptList.getDepartment(set.getString(11).toInt())!!
-                    item.vendor = vendorList.getVendor(set.getString(12).toInt())!!
-                    if (set.getString(13) != null)
-                        item.saleStart = set.getString(13).substring(0, 10)
-                    if (set.getString(14) != null)
-                        item.saleEnd = set.getString(14).substring(0, 10)
+                    item.id = set.getString(9)
 
-                    if (set.getString(15) != null)
-                        item.extDesc = set.getString(15)
-                    else
-                        item.extDesc = ""
-                    item.id = set.getString(16)
-
-                    // Seven days sold
-                    try {
-                        val sqlStatement2: String = "SELECT ISNULL(Sum(quantity),0) " +
-                                "FROM transactionentry inner join [transaction] on " +
-                                "[transaction].transactionnumber = " +
-                                "transactionentry.transactionnumber and " +
-                                "[transaction].storeid = transactionentry.storeid and " +
-                                "[transaction].time > getdate() - 6" +
-                                "WHERE transactionentry.itemid = '" + item.id + "'"
-                        val smt2: Statement = conn!!.createStatement()
-                        val set2: ResultSet = smt2.executeQuery(sqlStatement2)
-                        while (set2.next()) {
-                            if (set2.getInt(1) != null) {
-                                item.sevenDays = set2.getInt(1).toString()
-                            } else {
-                                item.sevenDays = "0"
-                            }
-                        }
-                        set2.close()
-
-                    } catch (e: Exception) {
-                        Log.e("Error --->---> ", e.message.toString())
-                    }
-
-                    // 15 days sold
-                    try {
-                        val sqlStatement2: String = "SELECT ISNULL(Sum(quantity),0) " +
-                                "FROM transactionentry inner join [transaction] on " +
-                                "[transaction].transactionnumber = " +
-                                "transactionentry.transactionnumber and " +
-                                "[transaction].storeid = transactionentry.storeid and " +
-                                "[transaction].time > getdate() - 14" +
-                                "WHERE transactionentry.itemid = '" + item.id + "'"
-                        val smt2: Statement = conn!!.createStatement()
-                        val set2: ResultSet = smt2.executeQuery(sqlStatement2)
-                        while (set2.next()) {
-                            if (set2.getInt(1) != null) {
-                                item.fifteenDays = set2.getInt(1).toString()
-                            } else {
-                                item.fifteenDays = "0"
-                            }
-                        }
-                        set2.close()
-
-                    } catch (e: Exception) {
-                        Log.e("Error --->---> ", e.message.toString())
-                    }
-
-                    // 30 days to sold
-                    try {
-                        val sqlStatement2: String = "SELECT ISNULL(Sum(quantity),0) " +
-                                "FROM transactionentry inner join [transaction] on " +
-                                "[transaction].transactionnumber = " +
-                                "transactionentry.transactionnumber and " +
-                                "[transaction].storeid = transactionentry.storeid and " +
-                                "[transaction].time > getdate() - 29" +
-                                "WHERE transactionentry.itemid = '" + item.id + "'"
-                        val smt2: Statement = conn!!.createStatement()
-                        val set2: ResultSet = smt2.executeQuery(sqlStatement2)
-                        while (set2.next()) {
-                            if (set2.getInt(1) != null) {
-                                item.thirtyDays = set2.getInt(1).toString()
-                            } else {
-                                item.thirtyDays = "0"
-                            }
-                        }
-                        set2.close()
-
-                    } catch (e: Exception) {
-                        Log.e("Error --->---> ", e.message.toString())
-                    }
                 }
-
-                // ItemVendors List
-                try {
-                    val sqlStatement3: String = "SELECT " +
-                            "SupplierName AS NAME, " +
-                            "MasterPackQuantity AS MPQ, " +
-                            "ReorderNumber AS RN, " +
-                            "SupplierList.cost AS COST " +
-                            "FROM Supplier, Supplierlist Inner Join Item on " +
-                            "Supplierlist.itemid = item.id and item.itemlookupcode = '" +
-                            item.upc + "'" +
-                            "WHERE supplierlist.supplierid = supplier.id"
-                    val smt3: Statement = conn!!.createStatement()
-                    val set3: ResultSet = smt3.executeQuery(sqlStatement3)
-                    //var itemVendorList = ItemVendorList()
-
-                    while (set3.next()) {
-                        var itemVendor: ItemVendor = ItemVendor()
-                        itemVendor.vendorName = set3.getString("NAME")
-                        itemVendor.mpq = set3.getInt("MPQ")
-                        itemVendor.reorderNumber = set3.getString("RN")
-
-                        itemVendor.cost = String.format("%1\$.2f",set3.getString("COST").toDouble())
-
-                        item.itemVendorList.addItemVendor(itemVendor)
-                    }
-                } catch (e: Exception) {
-                    Log.e(
-                        "E---> ItemVendorList Problem ---> ",
-                        e.message.toString()
-                    )
-                }
-
             } catch (e: Exception) {
                 Log.e("Error ---> Item Not Exist ---> ", e.message.toString())
             }

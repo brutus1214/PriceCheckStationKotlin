@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -55,6 +57,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat.registerReceiver
@@ -68,7 +71,9 @@ import com.example.pricecheckstationkotlin.model.data.VendorList
 import com.example.pricecheckstationkotlin.model.data.itemClear
 import com.example.pricecheckstationkotlin.ui.theme.Purple40
 import com.example.pricecheckstationkotlin.ui.theme.Purple80
+import com.example.pricecheckstationkotlin.util.GlobalVariable
 import com.example.pricecheckstationkotlin.util.GlobalVariable.context
+import com.example.pricecheckstationkotlin.util.IsItemOnSale
 import com.example.pricecheckstationkotlin.viewmodel.PriceCheckViewModel
 import kotlinx.coroutines.launch
 import java.sql.ResultSet
@@ -80,33 +85,22 @@ fun PriceCheckScreen(decodedData: String?)
 {
     val viewModel: PriceCheckViewModel = hiltViewModel()
 
-
-    val textFieldHeight: Int = 65
+    val textFieldHeightJumbo: Int = 400
+    val textFieldHeightLarge: Int = 240
+    val textFieldHeightSmall: Int = 100
+    val descSizeLarge: Int = 90
+    val descSizeSmall: Int = 50
+    val descSizeExtraSmall: Int = 30
+    val priceSize: Int = 200
 
     var item: Item by remember {
         mutableStateOf(Item())
     }
 
-
-    var text by remember {
-        mutableStateOf("")
-    }
-
-
     var scrollState = rememberScrollState()
 
-    val scope = rememberCoroutineScope()
-
-    var selectedItemIndex by rememberSaveable {
-        mutableStateOf(0)
-    }
-
-    val focusRequester = remember {
-        FocusRequester()
-    }
-
     var upc by remember() {
-        mutableStateOf(decodedData.toString())
+        mutableStateOf(TextFieldValue(""))
     }
     var desc by remember {
         mutableStateOf("")
@@ -126,9 +120,6 @@ fun PriceCheckScreen(decodedData: String?)
     var salePrice by remember {
         mutableStateOf("")
     }
-    var dept by remember {
-        mutableStateOf("")
-    }
     var saleStart by remember {
         mutableStateOf("")
     }
@@ -136,12 +127,8 @@ fun PriceCheckScreen(decodedData: String?)
         mutableStateOf("")
     }
 
-    var str by remember {
-        mutableStateOf("")
-    }
-
     var server by remember {
-        mutableStateOf("192.168.1.200")
+        mutableStateOf("10.10.9.200")
     }
     var userName by remember {
         mutableStateOf("sa")
@@ -169,58 +156,35 @@ fun PriceCheckScreen(decodedData: String?)
         // If conn successful, create list of department and supplier
         // Then navigate to ItemScreen
         if (conn != null) {
-            try {
-                val sqlStatement: String = "SELECT ID, Name FROM Department"
-                val smt: Statement = conn!!.createStatement()
-                val set: ResultSet = smt.executeQuery(sqlStatement)
-                var deptList = DepartmentList()
-
-                while (set.next()) {
-                    var dept: Department = Department()
-                    dept.id = set.getInt("ID")
-                    dept.name = set.getString("Name")
-                    deptList.addDepartment(dept)
-                    /*
-                    Log.i(
-                        "Department ---> ",
-                        dept.name.toString()
-                    )
-                    */
-                }
-                Log.i("PCSK: Department index Size---> ", deptList.getIndexSize().toString())
-            } catch (e: Exception) {
-                Log.e(
-                    "PCSK: Error ---> Department List Problem ---> ",
-                    e.message.toString()
-                )
-            }
 
             // If data is add by scanner then
             if (decodedData != null) {
                 itemClear(item)
 
 
-                val deptList = DepartmentList()
+                //var deptList = DepartmentList()
                 //val supplyList = VendorList()
 
                 // Get Zebra scanner input and populate
                 item.upc = decodedData
-                Log.i("PCSK: UPC ---> ", item.upc)
-                Log.i("PCSK: UPC decodedData---> ", decodedData)
-                upc = decodedData.toString()
+                //Log.i("PCSK: UPC ---> ", item.upc)
+                //Log.i("PCSK: UPC decodedData---> ", decodedData)
+                upc = TextFieldValue(item.upc)
                 viewModel.onEvent(ItemEvent.GetItemById(item))
                 desc = item.description
                 desc1 = item.desc1
                 desc2 = item.desc2
                 desc3 = item.desc3
-                retailPrice = item.retailPrice
+                retailPrice = if (IsItemOnSale(item.saleStart, item.saleEnd)) {
+                    item.salePrice
+                } else {
+                    item.retailPrice
+                }
                 salePrice = item.salePrice
-                dept = deptList.getDepartmentString(item.dept.id)
+                //dept = deptList.getDepartmentString(item.dept.id)
                 saleStart = item.saleStart
                 saleEnd = item.saleEnd
-
             }
-
         }
 
     }
@@ -232,393 +196,305 @@ fun PriceCheckScreen(decodedData: String?)
 
     ) { innerPadding ->
 
+        Box(modifier = Modifier) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .fillMaxWidth(),
+                verticalArrangement = Arrangement.Top,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState)
-                .fillMaxWidth(),
-            verticalArrangement = Arrangement.Top,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Showing LA Mart
-            OutlinedTextField(
+                OutlinedTextField(
+                    modifier = Modifier
+
+                        .fillMaxWidth(1f)
+                        .padding(horizontal = 8.dp)
+                        .height(textFieldHeightLarge.dp)
+                        .focusProperties { canFocus = false },
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        fontSize = descSizeLarge.sp
+                    ),
+                    value = desc,
+                    onValueChange = {
+                        desc = item.description
+                    },
+                    label = {
+                        Text("Desc.:")
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.Add,
+                            contentDescription = "Desc.:"
+                        )
+                    },
+                    prefix = {
+                        Text("")
+                    },
+                    suffix = {
+                        Text("")
+                    },
+                    supportingText = {
+                        Text("")
+                    },
+                    isError = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Text,
+                        imeAction = ImeAction.Next
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = {
+                        // TODO:
+                        }
+                    ),
+                    readOnly = true
+                )
+
+            Row(
                 modifier = Modifier
                     .fillMaxWidth(1f)
-                    .padding(horizontal = 8.dp)
-                    .height(textFieldHeight.dp)
-                    .focusProperties { canFocus = false },
-                value = "",
-                onValueChange = {
-                    desc = item.description
-                },
-                label = {
-                    Text("LA MART ")
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Outlined.Home,
-                        contentDescription = "LA MART"
-                    )
-                },
-                prefix = {
-                    Text("")
-                },
-                suffix = {
-                    Text("")
-                },
-                supportingText = {
-                    Text("")
-                },
-                isError = true,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Text,
-                    imeAction = ImeAction.Next
-                ),
-                keyboardActions = KeyboardActions(
-                    onNext = {
-                        // TODO:
-                    }
-                ),
-                readOnly = true
-            )
-
-                    OutlinedTextField(
-                        modifier = Modifier
-                            .height(textFieldHeight.dp)
-                            .focusRequester(focusRequester)
-                            .onFocusChanged { hasFocus ->
-                                //if (hasFocus.isFocused) {
-                                scope.launch {
-                                    val upcText = upc
-                                    //upc = upc.copy(
-                                    //    selection = TextRange(0, upcText.length)
-                                    //    //selection = TextRange(upcText.length)
-                                    //)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.4f)
+                ) {
+                    Column {
+                        OutlinedTextField(
+                            modifier = Modifier
+                                .fillMaxWidth(1f)
+                                .padding(horizontal = 8.dp)
+                                .height(textFieldHeightSmall.dp)
+                                .focusProperties { canFocus = false },
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                fontSize = descSizeSmall.sp
+                            ),
+                            value = desc1,
+                            onValueChange = {
+                                desc1 = item.desc1
+                            },
+                            label = {
+                                Text("Desc. 1:")
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.Add,
+                                    contentDescription = "Desc. 1:"
+                                )
+                            },
+                            prefix = {
+                                Text("")
+                            },
+                            suffix = {
+                                Text("")
+                            },
+                            isError = true,
+                            //visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Text,
+                                imeAction = ImeAction.Next
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onNext = {
+                                    // TODO:
                                 }
-                                //}
-                            }
-                            .focusable(),
-                        textStyle = TextStyle.Default.copy(fontSize = 14.sp),
-                        value = upc,
-                        onValueChange = {
-                            upc = it
-                        },
-                        singleLine = true,
-                        label = {
-                            Text("UPC:")
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.Add,
-                                contentDescription = "UPC:"
+                            ),
+                            readOnly = true
+                        )
+
+                        OutlinedTextField(
+                            modifier = Modifier
+                                .fillMaxWidth(1f)
+                                .padding(horizontal = 8.dp)
+                                .height(textFieldHeightSmall.dp)
+                                .focusProperties { canFocus = false },
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                fontSize = descSizeSmall.sp
+                            ),
+                            value = desc2,
+                            onValueChange = {
+                                desc2 = item.desc2
+                            },
+                            label = {
+                                Text("Desc. 2:")
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.Add,
+                                    contentDescription = "Desc. 2:"
+                                )
+                            },
+                            prefix = {
+                                Text("")
+                            },
+                            suffix = {
+                                Text("")
+                            },
+                            isError = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Text,
+                                imeAction = ImeAction.Next
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onNext = {
+                                    // TODO:
+                                }
+                            ),
+                            readOnly = true
+                        )
+
+                        OutlinedTextField(
+                            modifier = Modifier
+                                .fillMaxWidth(1f)
+                                .padding(horizontal = 8.dp)
+                                .height(textFieldHeightSmall.dp)
+                                .focusProperties { canFocus = false },
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                fontSize = descSizeSmall.sp
+                            ),
+                            value = desc3,
+                            onValueChange = {
+                                desc3 = item.desc3
+                            },
+                            label = {
+                                Text("Desc. 3:")
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.Add,
+                                    contentDescription = "Desc. 3:"
+                                )
+                            },
+                            prefix = {
+                                Text("")
+                            },
+                            suffix = {
+                                Text("")
+                            },
+                            isError = true,
+                            //visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Text,
+                                imeAction = ImeAction.Next
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onNext = {
+                                    // TODO:
+                                }
+                            ),
+                            readOnly = true
+                        )
+                        Row (
+                            modifier = Modifier
+                                .fillMaxSize(1f)
+                        ) {
+                            OutlinedTextField(
+                                modifier = Modifier
+                                    .fillMaxWidth(0.5f)
+                                    .padding(horizontal = 8.dp)
+                                    .height(textFieldHeightSmall.dp)
+                                    .focusProperties { canFocus = false },
+                                textStyle = androidx.compose.ui.text.TextStyle(
+                                    fontSize = descSizeExtraSmall.sp
+                                ),
+                                value = saleStart,
+                                onValueChange = {
+                                    saleStart = item.saleStart
+                                },
+                                singleLine = true,
+                                label = {
+                                    Text("Sale Start:")
+                                },
+                                prefix = {
+                                    Text("")
+                                },
+                                suffix = {
+                                    Text("")
+                                },
+                                isError = true,
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Text,
+                                    imeAction = ImeAction.Next
+                                ),
+                                keyboardActions = KeyboardActions(
+                                    onNext = {
+                                        // TODO:
+                                    }
+                                ),
+                                readOnly = false
                             )
-                        },
-                        prefix = {
-                            Text("")
-                        },
-                        suffix = {
-                            Text("")
-                        },
 
-                        isError = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Text,
-                            imeAction = ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onNext = {
-                                // TODO:
-                            }
-                        ),
-                        readOnly = false
-                    )
-
-
-                    //
-                    OutlinedTextField(
-                        modifier = Modifier
-                            .fillMaxWidth(1f)
-                            .padding(horizontal = 8.dp)
-                            .height(textFieldHeight.dp)
-                            .focusProperties { canFocus = false },
-                        value = desc,
-                        onValueChange = {
-                            desc = item.description
-                        },
-                        label = {
-                            Text("Desc.:")
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.Add,
-                                contentDescription = "Desc.:"
+                            OutlinedTextField(
+                                modifier = Modifier
+                                    .fillMaxWidth(1f)
+                                    .padding(horizontal = 8.dp)
+                                    .height(textFieldHeightSmall.dp)
+                                    .focusProperties { canFocus = false },
+                                textStyle = androidx.compose.ui.text.TextStyle(
+                                    fontSize = descSizeExtraSmall.sp
+                                ),
+                                value = saleEnd,
+                                onValueChange = {
+                                    saleEnd = item.saleEnd
+                                },
+                                label = {
+                                    Text("Sale End:")
+                                },
+                                prefix = {
+                                    Text("")
+                                },
+                                suffix = {
+                                    Text("")
+                                },
+                                isError = true,
+                                //visualTransformation = PasswordVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Text,
+                                    imeAction = ImeAction.Next
+                                ),
+                                keyboardActions = KeyboardActions(
+                                    onNext = {
+                                        // TODO:
+                                    }
+                                ),
+                                readOnly = true
                             )
-                        },
-                        prefix = {
-                            Text("")
-                        },
-                        suffix = {
-                            Text("")
-                        },
-                        supportingText = {
-                            Text("")
-                        },
-                        isError = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Text,
-                            imeAction = ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onNext = {
-                                // TODO:
-                            }
-                        ),
-                        readOnly = true
-                    )
-
+                    }
+                    }
+                }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(1f)
+            ) {
 
                     OutlinedTextField(
                         modifier = Modifier
-                            .fillMaxWidth(1f)
+                            .fillMaxSize()
                             .padding(horizontal = 8.dp)
-                            .weight(5f)
-                            .height(textFieldHeight.dp)
+                            .height(textFieldHeightJumbo.dp)
                             .focusProperties { canFocus = false },
-                        value = desc1,
-                        onValueChange = {
-                            desc1 = item.desc1
-                        },
-                        label = {
-                            Text("Desc. 1:")
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.Add,
-                                contentDescription = "Desc. 1:"
-                            )
-                        },
-                        prefix = {
-                            Text("")
-                        },
-                        suffix = {
-                            Text("")
-                        },
-                        isError = true,
-                        //visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Text,
-                            imeAction = ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onNext = {
-                                // TODO:
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            fontSize = priceSize.sp,
+                            color = if (IsItemOnSale(item.saleStart, item.saleEnd)) {
+                                Color.Red
+                            } else {
+                            Color.Black
                             }
                         ),
-                        readOnly = true
-                    )
-
-                    OutlinedTextField(
-                        modifier = Modifier
-                            .fillMaxWidth(1f)
-                            .padding(horizontal = 8.dp)
-                            .weight(5f)
-                            .height(textFieldHeight.dp)
-                            .focusProperties { canFocus = false },
-                        value = desc2,
-                        onValueChange = {
-                            desc2 = item.desc2
-                        },
-                        label = {
-                            Text("Desc. 2:")
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.Add,
-                                contentDescription = "Desc. 2:"
-                            )
-                        },
-                        prefix = {
-                            Text("")
-                        },
-                        suffix = {
-                            Text("")
-                        },
-                        isError = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Text,
-                            imeAction = ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onNext = {
-                                // TODO:
-                            }
-                        ),
-                        readOnly = true
-                    )
-
-
-
-                    OutlinedTextField(
-                        modifier = Modifier
-                            .fillMaxWidth(1f)
-                            .padding(horizontal = 8.dp)
-                            .weight(5f)
-                            .height(textFieldHeight.dp)
-                            .focusProperties { canFocus = false },
-                        value = desc3,
-                        onValueChange = {
-                            desc3 = item.desc3
-                        },
-                        label = {
-                            Text("Desc. 3:")
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.Add,
-                                contentDescription = "Desc. 3:"
-                            )
-                        },
-                        prefix = {
-                            Text("")
-                        },
-                        suffix = {
-                            Text("")
-                        },
-                        isError = true,
-                        //visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Text,
-                            imeAction = ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onNext = {
-                                // TODO:
-                            }
-                        ),
-                        readOnly = true
-                    )
-
-                    // Department--
-                    OutlinedTextField(
-                        modifier = Modifier
-                            .fillMaxWidth(1f)
-                            .padding(horizontal = 8.dp)
-                            .weight(5f)
-                            .height(textFieldHeight.dp)
-                            .focusProperties { canFocus = false },
-                        value = dept,
-                        onValueChange = {
-                            dept = item.dept.toString()
-                        },
-                        singleLine = true,
-                        label = {
-                            Text("Department:")
-                        },
-                        prefix = {
-                            Text("")
-                        },
-                        suffix = {
-                            Text("")
-                        },
-                        isError = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Text,
-                            imeAction = ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onNext = {
-                                // TODO:
-                            }
-                        ),
-                        readOnly = false
-                    )
-
-                    OutlinedTextField(
-                        modifier = Modifier
-                            .fillMaxWidth(1f)
-                            .padding(horizontal = 8.dp)
-                            .weight(5f)
-                            .height(textFieldHeight.dp)
-                            .focusProperties { canFocus = false },
-                        value = saleStart,
-                        onValueChange = {
-                            saleStart = item.saleStart.toString()
-                        },
-                        singleLine = true,
-                        label = {
-                            Text("Sale Start:")
-                        },
-                        prefix = {
-                            Text("")
-                        },
-                        suffix = {
-                            Text("")
-                        },
-                        isError = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Text,
-                            imeAction = ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onNext = {
-                                // TODO:
-                            }
-                        ),
-                        readOnly = false
-                    )
-
-                    OutlinedTextField(
-                        modifier = Modifier
-                            .fillMaxWidth(1f)
-                            .padding(horizontal = 8.dp)
-                            .weight(5f)
-                            .height(textFieldHeight.dp)
-                            .focusProperties { canFocus = false },
-                        value = saleEnd,
-                        onValueChange = {
-                            saleEnd = item.saleEnd.toString()
-                        },
-                        label = {
-                            Text("Sale End:")
-                        },
-                        prefix = {
-                            Text("$")
-                        },
-                        suffix = {
-                            Text("")
-                        },
-                        isError = true,
-                        //visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Text,
-                            imeAction = ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onNext = {
-                                // TODO:
-                            }
-                        ),
-                        readOnly = true
-                    )
-
-                    OutlinedTextField(
-                        modifier = Modifier
-                            .fillMaxWidth(1f)
-                            .padding(horizontal = 8.dp)
-                            .weight(3.3f)
-                            .height(textFieldHeight.dp)
-                            .focusProperties { canFocus = false },
                         value = retailPrice,
                         onValueChange = {
-                            retailPrice = item.retailPrice
+                            retailPrice = if (IsItemOnSale(item.saleStart, item.saleEnd)) {
+                                item.salePrice
+                            } else {
+                                item.retailPrice
+                            }
                         },
                         singleLine = true,
                         label = {
-                            Text("RP:")
+                            Text("Retail Price:")
                         },
                         prefix = {
-                            Text("$")
+                            Text("$", fontSize = 150.sp)
                         },
                         suffix = {
                             Text("")
@@ -636,41 +512,15 @@ fun PriceCheckScreen(decodedData: String?)
                         readOnly = false
                     )
 
-                    OutlinedTextField(
-                        modifier = Modifier
-                            .fillMaxWidth(1f)
-                            .padding(horizontal = 8.dp)
-                            .weight(3.3f)
-                            .height(textFieldHeight.dp)
-                            .focusProperties { canFocus = false },
-                        value = salePrice,
-                        onValueChange = {
-                            salePrice = item.salePrice
-                        },
-                        label = {
-                            Text("SP:")
-                        },
-                        prefix = {
-                            Text("$")
-                        },
-                        suffix = {
-                            Text("")
-                        },
-                        isError = true,
-                        //visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Text,
-                            imeAction = ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onNext = {
-                                // TODO:
-                            }
-                        ),
-                        readOnly = true
-                    )
+                }
 
+            }
+            }
         }
+        Log.i("PCSK: Sale ---> ", IsItemOnSale(item.saleStart, item.saleEnd).toString())
+        Log.i("PCSK: start ---> ", item.saleStart)
+        Log.i("PCSK: end ---> ", item.saleEnd)
+        Log.i("PCSK: Price ---> ", retailPrice)
     }
 }
 
